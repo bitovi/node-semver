@@ -10,6 +10,7 @@ clean:
 
 semver.browser.js: head.js.txt semver.js foot.js.txt
 	( cat head.js.txt; \
+		cat shims.js; \
 		cat semver.js | \
 			egrep -v '^ *\/\* nomin \*\/' | \
 			perl -pi -e 's/debug\([^\)]+\)//g'; \
