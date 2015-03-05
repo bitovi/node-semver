@@ -231,6 +231,12 @@ for (var i = 0; i < R; i++) {
     re[i] = new RegExp(src[i]);
 }
 
+/* polyfill-start */
+var map = typeof map !== "undefined" ? map : Array.prototype.map;
+var filter = typeof filter !== "undefined" ? filter : Array.prototype.filter;
+var trim = typeof trim !== "undefined" ? trim : String.prototype.trim;
+/* polyfill-end */
+
 exports.parse = parse;
 function parse(version, loose) {
   var r = loose ? re[LOOSE] : re[FULL];
@@ -246,7 +252,7 @@ function valid(version, loose) {
 
 exports.clean = clean;
 function clean(version, loose) {
-  var s = parse(version.trim().replace(/^[=v]+/, ''), loose);
+  var s = parse(trim.call(version).replace(/^[=v]+/, ''), loose);
   return s ? s.version : null;
 }
 
@@ -267,7 +273,7 @@ function SemVer(version, loose) {
 
   debug('SemVer', version, loose);
   this.loose = loose;
-  var m = version.trim().match(loose ? re[LOOSE] : re[FULL]);
+  var m = trim.call(version).match(loose ? re[LOOSE] : re[FULL]);
 
   if (!m)
     throw new TypeError('Invalid Version: ' + version);
@@ -283,7 +289,7 @@ function SemVer(version, loose) {
   if (!m[4])
     this.prerelease = [];
   else
-    this.prerelease = m[4].split('.').map(function(id) {
+    this.prerelease = map.call(m[4].split('.'), function(id) {
       return (/^[0-9]+$/.test(id)) ? +id : id;
     });
 
@@ -690,9 +696,9 @@ function Range(range, loose) {
 
   // First, split based on boolean or ||
   this.raw = range;
-  this.set = range.split(/\s*\|\|\s*/).map(function(range) {
-    return this.parseRange(range.trim());
-  }, this).filter(function(c) {
+  this.set = filter.call(map.call(range.split(/\s*\|\|\s*/), function(range) {
+    return this.parseRange(trim.call(range));
+  }, this), function(c) {
     // throw out any that are not relevant for whatever reason
     return c.length;
   });
@@ -709,9 +715,9 @@ Range.prototype.inspect = function() {
 };
 
 Range.prototype.format = function() {
-  this.range = this.set.map(function(comps) {
-    return comps.join(' ').trim();
-  }).join('||').trim();
+  this.range = trim.call(map.call(this.set, function(comps) {
+    return trim.call(comps.join(' '));
+  }).join('||'));
   return this.range;
 };
 
@@ -721,7 +727,7 @@ Range.prototype.toString = function() {
 
 Range.prototype.parseRange = function(range) {
   var loose = this.loose;
-  range = range.trim();
+  range = trim.call(range);
   debug('range', range, loose);
   // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
   var hr = loose ? re[HYPHENRANGELOOSE] : re[HYPHENRANGE];
@@ -744,16 +750,16 @@ Range.prototype.parseRange = function(range) {
   // ready to be split into comparators.
 
   var compRe = loose ? re[COMPARATORLOOSE] : re[COMPARATOR];
-  var set = range.split(' ').map(function(comp) {
+  var set = map.call(range.split(' '), function(comp) {
     return parseComparator(comp, loose);
   }).join(' ').split(/\s+/);
   if (this.loose) {
     // in loose mode, throw out any that are not valid comparators
-    set = set.filter(function(comp) {
+    set = filter.call(set, function(comp) {
       return !!comp.match(compRe);
     });
   }
-  set = set.map(function(comp) {
+  set = map.call(set, function(comp) {
     return new Comparator(comp, loose);
   });
 
@@ -763,10 +769,10 @@ Range.prototype.parseRange = function(range) {
 // Mostly just for testing and legacy API reasons
 exports.toComparators = toComparators;
 function toComparators(range, loose) {
-  return new Range(range, loose).set.map(function(comp) {
-    return comp.map(function(c) {
+  return map.call(new Range(range, loose).set, function(comp) {
+    return trim.call(map.call(comp, function(c) {
       return c.value;
-    }).join(' ').trim().split(' ');
+    }).join(' ')).split(' ');
   });
 }
 
@@ -797,7 +803,7 @@ function isX(id) {
 // ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0
 // ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0
 function replaceTildes(comp, loose) {
-  return comp.trim().split(/\s+/).map(function(comp) {
+  return map.call(trim.call(comp).split(/\s+/), function(comp) {
     return replaceTilde(comp, loose);
   }).join(' ');
 }
@@ -838,7 +844,7 @@ function replaceTilde(comp, loose) {
 // ^1.2.3 --> >=1.2.3 <2.0.0
 // ^1.2.0 --> >=1.2.0 <2.0.0
 function replaceCarets(comp, loose) {
-  return comp.trim().split(/\s+/).map(function(comp) {
+  return map.call(trim.call(comp).split(/\s+/), function(comp) {
     return replaceCaret(comp, loose);
   }).join(' ');
 }
@@ -894,13 +900,13 @@ function replaceCaret(comp, loose) {
 
 function replaceXRanges(comp, loose) {
   debug('replaceXRanges', comp, loose);
-  return comp.split(/\s+/).map(function(comp) {
+  return map.call(comp.split(/\s+/), function(comp) {
     return replaceXRange(comp, loose);
   }).join(' ');
 }
 
 function replaceXRange(comp, loose) {
-  comp = comp.trim();
+  comp = trim.call(comp);
   var r = loose ? re[XRANGELOOSE] : re[XRANGE];
   return comp.replace(r, function(ret, gtlt, M, m, p, pr) {
     debug('xRange', comp, ret, gtlt, M, m, p, pr);
@@ -968,7 +974,7 @@ function replaceXRange(comp, loose) {
 function replaceStars(comp, loose) {
   debug('replaceStars', comp, loose);
   // Looseness is ignored here.  star is always as loose as it gets!
-  return comp.trim().replace(re[STAR], '');
+  return trim.call(comp).replace(re[STAR], '');
 }
 
 // This function is passed to string.replace(re[HYPHENRANGE])
@@ -1000,7 +1006,7 @@ function hyphenReplace($0,
   else
     to = '<=' + to;
 
-  return (from + ' ' + to).trim();
+  return trim.call(from + ' ' + to);
 }
 
 
@@ -1064,7 +1070,7 @@ function satisfies(version, range, loose) {
 
 exports.maxSatisfying = maxSatisfying;
 function maxSatisfying(versions, range, loose) {
-  return versions.filter(function(version) {
+  return filter.call(versions, function(version) {
     return satisfies(version, range, loose);
   }).sort(function(a, b) {
     return rcompare(a, b, loose);
